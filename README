@@ -1,1 +1,5 @@
-.
+```sh
+$ npm i -g @google/clasp
+$ clasp login
+# If you are on Codespaces, https://github.com/orgs/community/discussions/40645
+```

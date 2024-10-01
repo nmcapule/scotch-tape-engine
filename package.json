@@ -1,0 +1,10 @@
+{
+  "name": "scotch-tape-engine",
+  "version": "0.0.1",
+  "repository": "https://github.com/nmcapule/scotch-tape-engine",
+  "author": "Nathaniel M. Capule <llss.s.sls.lll@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/google-apps-script": "^1.0.83"
+  }
+}
