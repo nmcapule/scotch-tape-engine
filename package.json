@@ -4,7 +4,19 @@
   "repository": "https://github.com/nmcapule/scotch-tape-engine",
   "author": "Nathaniel M. Capule <llss.s.sls.lll@gmail.com>",
   "license": "MIT",
+  "source": "src/index.ts",
+  "scripts": {
+    "watch": "parcel watch --no-hmr",
+    "build": "parcel build"
+  },
   "devDependencies": {
-    "@types/google-apps-script": "^1.0.83"
+    "@types/google-apps-script": "^1.0.83",
+    "parcel": "^2.12.0",
+    "parcel-optimizer-gas": "^1.0.6"
+  },
+  "targets": {
+    "default": {
+      "context": "browser"
+    }
   }
 }

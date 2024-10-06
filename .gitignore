@@ -1,2 +1,5 @@
-node_modules
-.clasp.json
+.parcel-cache/
+dist/
+node_modules/
+
+src/config.ts

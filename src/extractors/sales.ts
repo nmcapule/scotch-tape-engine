@@ -1,9 +1,8 @@
-const SALES_SPREADSHEET_ID = "...snip...";
-const GRAB_SHEET_ID = "GRAB";
+import { extractDate } from "../utils/dates";
+import { GRAB_SHEET_ID, SALES_SPREADSHEET_ID } from "../config";
+export type DateString = string;
 
-type DateString = string;
-
-interface GrabSales {
+export interface GrabSales {
   date?: DateString;
   originalPrice?: number;
   amount?: number;
@@ -11,12 +10,12 @@ interface GrabSales {
   total?: number;
 }
 
-type Sales = {
+export type Sales = {
   date?: DateString;
   [key: string]: any;
 };
 
-class DailySalesSummary {
+export class DailySalesSummary {
   constructor(
     readonly date: DateString,
     readonly sales: Sales,
@@ -52,37 +51,6 @@ class DailySalesSummary {
       },
     };
   }
-}
-
-function main() {
-  let grabSalesLookup = new Map<DateString, GrabSales>();
-  let salesLookup = new Map<DateString, Sales>();
-
-  const spreadsheet = SpreadsheetApp.openById(SALES_SPREADSHEET_ID);
-  for (const sheet of spreadsheet.getSheets()) {
-    const sheetName = sheet.getSheetName();
-    if (sheetName === GRAB_SHEET_ID) {
-      Logger.log(`Parsing GRAB sheet...`);
-      grabSalesLookup = extractDailyGrabSales(sheet);
-    } else {
-      const monthDate = parseDailySalesSheetName(sheetName);
-      if (!monthDate) {
-        continue;
-      }
-      Logger.log(`Parsing daily sales sheet ${sheetName}...`);
-      extractDailySales(sheet).forEach((v, k) => salesLookup.set(k, v));
-    }
-  }
-
-  const dailySales = Array.from(salesLookup.entries())
-    .map(
-      ([date, sales]) =>
-        new DailySalesSummary(date, sales, grabSalesLookup.get(date))
-    )
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .forEach((entry) => {
-      Logger.log(JSON.stringify(entry.simple, null, 2));
-    });
 }
 
 function extractDailyGrabSales(sheet: GoogleAppsScript.Spreadsheet.Sheet) {
@@ -176,21 +144,33 @@ function parseDailySalesSheetName(sheetName: string) {
   return new Date(month);
 }
 
-const PREFERRED_TIME_ZONE = "Asia/Manila";
-const PREFERRED_DATE_FORMAT = "yyyy-MM-dd";
+export class SalesRecordsExtractor {
+  spreadsheet = SpreadsheetApp.openById(SALES_SPREADSHEET_ID);
 
-function formatDate(date: Date) {
-  return Utilities.formatDate(date, PREFERRED_TIME_ZONE, PREFERRED_DATE_FORMAT);
-}
+  getSales() {
+    let grabSalesLookup = new Map<DateString, GrabSales>();
+    let salesLookup = new Map<DateString, Sales>();
 
-function extractDate(value: any) {
-  if (value instanceof Date) {
-    return formatDate(value);
-  }
-  if (typeof value === "string") {
-    const DATE_RE = /^\d+\/\d+\/\d+$/;
-    if (value.match(DATE_RE)) {
-      return formatDate(new Date(value));
+    for (const sheet of this.spreadsheet.getSheets()) {
+      const sheetName = sheet.getSheetName();
+      if (sheetName === GRAB_SHEET_ID) {
+        Logger.log(`Parsing GRAB sheet...`);
+        grabSalesLookup = extractDailyGrabSales(sheet);
+      } else {
+        const monthDate = parseDailySalesSheetName(sheetName);
+        if (!monthDate) {
+          continue;
+        }
+        Logger.log(`Parsing daily sales sheet ${sheetName}...`);
+        extractDailySales(sheet).forEach((v, k) => salesLookup.set(k, v));
+      }
     }
+
+    return Array.from(salesLookup.entries())
+      .map(
+        ([date, sales]) =>
+          new DailySalesSummary(date, sales, grabSalesLookup.get(date))
+      )
+      .sort((a, b) => a.date.localeCompare(b.date));
   }
 }
