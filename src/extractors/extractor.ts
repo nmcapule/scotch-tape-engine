@@ -1,6 +1,6 @@
 export interface ExtractionHeadersSpecs<T = any> {
   // Extract all the headers in this dimension-wise index.
-  index: number;
+  index?: number;
   // Cascade the header value to the next empty cells.
   cascading?: boolean;
   // Human label for this header.
@@ -14,19 +14,16 @@ export interface ExtractionHeadersSpecs<T = any> {
 export interface ExtractionSpecs {
   headers: {
     colwise: ExtractionHeadersSpecs[];
-    rowwise: ExtractionHeadersSpecs[];
+    rowwise?: ExtractionHeadersSpecs[];
   };
+  isWithinRange?: (row: number, col: number) => Boolean;
 }
 
 export class HeaderLayout {
-  constructor(readonly keys: any[], readonly index: number) {}
+  constructor(readonly keys: Record<string, any>, readonly index: number) {}
 
   get isComplete() {
-    return this.keys.every((e) => Boolean(e));
-  }
-
-  get serialized() {
-    return this.keys.join("$");
+    return Object.values(this.keys).every((e) => e !== "");
   }
 }
 
@@ -38,20 +35,44 @@ export class Extractor {
 
   extract() {
     const values = this.sheet.getDataRange().getValues();
-    const cwhlayout = this.parseLayout(
-      this.specs.headers.colwise,
+    const displayValues = this.sheet.getDataRange().getDisplayValues();
+
+    const cwhLayout = this.parseLayout(
+      [{ label: "$col" }, ...(this.specs.headers.colwise || [])],
       (idx) => values[idx]
     );
-    const rwhlayout = this.parseLayout(this.specs.headers.rowwise, (idx) =>
-      values.map((r) => r[idx])
+    const rwhLayout = this.parseLayout(
+      [{ label: "$row" }, ...(this.specs.headers.rowwise || [])],
+      (idx) => values.map((r) => r[idx])
     );
 
+    const minRow = Math.max(
+      -1,
+      ...(this.specs.headers.colwise.map((h) => h.index ?? -1) || [])
+    );
+    const minCol = Math.max(
+      -1,
+      ...(this.specs.headers.rowwise?.map((h) => h.index ?? -1) || [])
+    );
+    const isWithinRange =
+      this.specs.isWithinRange ?? ((row, col) => row > minRow && col > minCol);
+
     const output: any[] = [];
-    for (const cwh of cwhlayout) {
+    for (const cwh of cwhLayout) {
       const col = cwh.index;
-      for (const rwh of rwhlayout) {
+      for (const rwh of rwhLayout) {
         const row = rwh.index;
-        output.push({ cwh: cwh.keys, rwh: rwh.keys, value: values[row][col] });
+        if (!isWithinRange(row, col)) {
+          continue;
+        }
+        output.push({
+          keys: {
+            ...cwh.keys,
+            ...rwh.keys,
+          },
+          value: values[row][col],
+          displayValue: displayValues[row][col],
+        });
       }
     }
     return output;
@@ -62,14 +83,19 @@ export class Extractor {
     headersGetter: (idx) => any[]
   ) {
     return specs
-      .map((cwh) => {
-        let headers = headersGetter(cwh.index);
-        if (cwh.cascading) {
+      .map((spec) => {
+        let headers = headersGetter(spec.index);
+        // If index is not defined, treat this as extracting index value.
+        if (spec.index === undefined) {
+          headers = headersGetter(0).map((_, i) => i);
+        }
+        if (spec.cascading) {
           headers = cascade(headers);
         }
         return headers.map((h, i) => ({
-          exclude: cwh.exclude?.(h, i),
-          label: cwh.transform?.(h, i) ?? h,
+          exclude: spec.exclude?.(h, i),
+          label: spec.transform?.(h, i) ?? h,
+          header: spec.label,
         }));
       })
       .reduce((acc, curr) => {
@@ -84,7 +110,13 @@ export class Extractor {
           return null;
         }
         return new HeaderLayout(
-          arr.map((e) => e.label),
+          arr.reduce(
+            (acc, curr) => ({
+              ...acc,
+              [curr.header]: curr.label,
+            }),
+            {} as Record<string, any>
+          ),
           i
         );
       })
